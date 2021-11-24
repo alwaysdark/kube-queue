@@ -17,14 +17,9 @@
 package multischedulingqueue
 
 import (
-	"github.com/kube-queue/kube-queue/pkg/utils"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
-	"regexp"
 	"sort"
 	"sync"
-
-	"github.com/kube-queue/kube-queue/pkg/framework/plugins/priority"
 
 	"github.com/kube-queue/api/pkg/apis/scheduling/v1alpha1"
 	"github.com/kube-queue/kube-queue/pkg/framework"
@@ -53,74 +48,89 @@ func NewMultiSchedulingQueue(fw framework.Framework, podInitialBackoffSeconds in
 		podInitialBackoffSeconds: podInitialBackoffSeconds,
 		podMaxBackoffSeconds: podMaxBackoffSeconds,
 	}
-
-	nsList, err := informersFactory.Core().V1().Namespaces().Lister().List(labels.Everything())
-	if err != nil {
-		return nil, err
-	}
-	// support mutil queue, key is namespace name
-	for _, ns := range nsList {
-		// Check whether the Namespace needs to be processed
-		if b := regexp.MustCompile(utils.RegexpStr).MatchString(ns.Name); !b {
-			continue
-		}
-		nsQueue := schedulingqueue.NewPrioritySchedulingQueue(fw, ns.Name, priority.Name, podInitialBackoffSeconds, podMaxBackoffSeconds)
-		mq.queueMap[ns.Name] = nsQueue
-	}
+    // TODO 该处需要研究一下informer
+	//nsList, err := informersFactory.Core().V1().Namespaces().Lister().List(labels.Everything())
+	//if err != nil {
+	//	return nil, err
+	//}
+	//// support mutil queue, key is namespace name
+	//for _, ns := range nsList {
+	//	// Check whether the Namespace needs to be processed
+	//	if b := regexp.MustCompile(utils.RegexpStr).MatchString(ns.Name); !b {
+	//		continue
+	//	}
+	//	nsQueue := schedulingqueue.NewPrioritySchedulingQueue(fw, ns.Name, priority.Name, podInitialBackoffSeconds, podMaxBackoffSeconds)
+	//	mq.queueMap[ns.Name] = nsQueue
+	//}
 	return mq, nil
 }
 
 func (mq *MultiSchedulingQueue) Run() {
+	mq.Lock()
+	defer mq.Unlock()
+
 	for _, q := range mq.queueMap {
 		q.Run()
 	}
 }
 
 func (mq *MultiSchedulingQueue) Close() {
+	mq.Lock()
+	defer mq.Unlock()
+
 	for _, q := range mq.queueMap {
 		q.Close()
 	}
 }
 
 func (mq *MultiSchedulingQueue) Add(q *v1alpha1.Queue) error {
-	pq := schedulingqueue.NewPrioritySchedulingQueue(mq.fw, q.Name, "priority", mq.podInitialBackoffSeconds, mq.podMaxBackoffSeconds)
+	mq.Lock()
+	defer mq.Unlock()
+
+	pq := schedulingqueue.NewPrioritySchedulingQueue(mq.fw, q.Name, "Priority", mq.podInitialBackoffSeconds, mq.podMaxBackoffSeconds)
 	mq.queueMap[pq.Name()] = pq
 	return nil
 }
 
 func (mq *MultiSchedulingQueue) Delete(q *v1alpha1.Queue) error {
+	mq.Lock()
+	defer mq.Unlock()
+
 	delete(mq.queueMap, q.Name)
 	return nil
 }
 
 func (mq *MultiSchedulingQueue) Update(old *v1alpha1.Queue, new *v1alpha1.Queue) error {
-	pq := schedulingqueue.NewPrioritySchedulingQueue(mq.fw, new.Name, "priority", mq.podInitialBackoffSeconds, mq.podMaxBackoffSeconds)
+	pq := schedulingqueue.NewPrioritySchedulingQueue(mq.fw, new.Name, "Priority", mq.podInitialBackoffSeconds, mq.podMaxBackoffSeconds)
 	mq.queueMap[pq.Name()] = pq
 	return nil
 }
 
 func (mq *MultiSchedulingQueue) GetQueueByName(name string) (queue.SchedulingQueue, bool) {
+	mq.Lock()
+	defer mq.Unlock()
+
 	if name == "" {
-		return mq.queueMap["default"], true
+		return nil, false
 	}
 	q, ok := mq.queueMap[name]
 	return q, ok
 }
 
 func (mq *MultiSchedulingQueue) SortedQueue() []queue.SchedulingQueue {
+	mq.Lock()
+	defer mq.Unlock()
+
 	len := len(mq.queueMap)
 	unSortedQueue := make([]queue.SchedulingQueue, len)
-
 	index := 0
 	for _, q := range mq.queueMap {
 		unSortedQueue[index] = q
 		index++
 	}
-
 	sort.Slice(unSortedQueue, func(i, j int) bool {
 		return mq.lessFunc(unSortedQueue[i].QueueInfo(), unSortedQueue[j].QueueInfo())
 	})
-
 	return unSortedQueue
 }
 
