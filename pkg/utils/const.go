@@ -19,4 +19,5 @@ package utils
 const (
 	ControllerAgentName = "kube-queue-controller"
 	Default             = "default"
+	RegexpStr           = "^[0-9a-f]{24}$"
 )

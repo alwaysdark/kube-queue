@@ -17,10 +17,12 @@
 package multischedulingqueue
 
 import (
+	"github.com/kube-queue/kube-queue/pkg/utils"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/informers"
+	"regexp"
 	"sort"
 	"sync"
-
-	"github.com/kube-queue/kube-queue/pkg/utils"
 
 	"github.com/kube-queue/kube-queue/pkg/framework/plugins/priority"
 
@@ -42,7 +44,7 @@ type MultiSchedulingQueue struct {
 	podMaxBackoffSeconds int
 }
 
-func NewMultiSchedulingQueue(fw framework.Framework, podInitialBackoffSeconds int, podMaxBackoffSeconds int) (queue.MultiSchedulingQueue, error) {
+func NewMultiSchedulingQueue(fw framework.Framework, podInitialBackoffSeconds int, podMaxBackoffSeconds int, informersFactory informers.SharedInformerFactory) (queue.MultiSchedulingQueue, error) {
 
 	mq := &MultiSchedulingQueue{
 		fw:       fw,
@@ -52,11 +54,19 @@ func NewMultiSchedulingQueue(fw framework.Framework, podInitialBackoffSeconds in
 		podMaxBackoffSeconds: podMaxBackoffSeconds,
 	}
 
-	// TODO support mutil queue
-	// 当前只是创建default
-	defaultQueue := schedulingqueue.NewPrioritySchedulingQueue(fw, utils.Default, priority.Name, podInitialBackoffSeconds, podMaxBackoffSeconds)
-	mq.queueMap[utils.Default] = defaultQueue
-
+	nsList, err := informersFactory.Core().V1().Namespaces().Lister().List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	// support mutil queue, key is namespace name
+	for _, ns := range nsList {
+		// Check whether the Namespace needs to be processed
+		if b := regexp.MustCompile(utils.RegexpStr).MatchString(ns.Name); !b {
+			continue
+		}
+		nsQueue := schedulingqueue.NewPrioritySchedulingQueue(fw, ns.Name, priority.Name, podInitialBackoffSeconds, podMaxBackoffSeconds)
+		mq.queueMap[ns.Name] = nsQueue
+	}
 	return mq, nil
 }
 

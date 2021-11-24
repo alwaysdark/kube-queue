@@ -73,7 +73,7 @@ func NewController(
 		klog.Fatalf("new framework failed %v", err)
 	}
 
-	multiSchedulingQueue, err := multischedulingqueue.NewMultiSchedulingQueue(fw, podInitialBackoffSeconds, podMaxBackoffSeconds)
+	multiSchedulingQueue, err := multischedulingqueue.NewMultiSchedulingQueue(fw, podInitialBackoffSeconds, podMaxBackoffSeconds, informersFactory)
 	if err != nil {
 		klog.Fatalf("init multi scheduling queue failed %s", err)
 	}
@@ -85,7 +85,7 @@ func NewController(
 		queueUnitClient:      queueUnitClient,
 		queueUnitInformer:    queueInformer,
 	}
-	controller.addAllEventHandlers(queueInformer)
+	controller.addAllEventHandlers(queueInformer, informersFactory)
 	go controller.queueUnitInformer.Run(stopCh)
 
 	controller.scheduler, err = scheduler.NewScheduler(multiSchedulingQueue, fw, queueUnitClient)

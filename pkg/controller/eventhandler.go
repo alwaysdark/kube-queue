@@ -18,6 +18,11 @@ package controller
 
 import (
 	"context"
+	"github.com/kube-queue/kube-queue/pkg/utils"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/informers"
+	"regexp"
 
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
@@ -26,7 +31,7 @@ import (
 	"github.com/kube-queue/kube-queue/pkg/framework"
 )
 
-func (c *Controller) addAllEventHandlers(queueInformer cache.SharedIndexInformer) {
+func (c *Controller) addAllEventHandlers(queueInformer cache.SharedIndexInformer, informersFactory informers.SharedInformerFactory) {
 	queueInformer.AddEventHandler(
 		cache.FilteringResourceEventHandler{
 			FilterFunc: func(obj interface{}) bool {
@@ -67,7 +72,59 @@ func (c *Controller) addAllEventHandlers(queueInformer cache.SharedIndexInformer
 			},
 		},
 	)
+
+	namespaceInformer := informersFactory.Core().V1().Namespaces().Informer()
+	namespaceInformer.AddEventHandler(
+		cache.FilteringResourceEventHandler{
+			FilterFunc: func(obj interface{}) bool {
+				switch obj.(type) {
+				case *v1.Namespace:
+					return true
+				default:
+					return false
+				}
+			},
+			Handler: cache.ResourceEventHandlerFuncs{
+				AddFunc:    c.AddNamespace,
+				DeleteFunc: c.DeleteNamespace,
+			},
+		},
+	)
 }
+
+func (c *Controller) DeleteNamespace(obj interface{}) {
+	ns := obj.(*v1.Namespace)
+	queueName := ns.Name
+	// Check whether the Namespace needs to be processed
+	if b := regexp.MustCompile(utils.RegexpStr).MatchString(queueName); !b {
+		return
+	}
+	queue := v1alpha1.Queue{ObjectMeta: metav1.ObjectMeta{Name: queueName}}
+	err := c.multiSchedulingQueue.Delete(&queue)
+	if err != nil {
+		klog.Errorf("queueMap delete queue %s fail %v", queueName, err.Error())
+	}
+}
+
+func (c *Controller) AddNamespace(obj interface{}) {
+	ns := obj.(*v1.Namespace)
+	queueName := ns.Name
+	// Check whether the Namespace needs to be processed
+	if b := regexp.MustCompile(utils.RegexpStr).MatchString(queueName); !b {
+		return
+	}
+	_, ok := c.multiSchedulingQueue.GetQueueByName(ns.Name)
+	if ok {
+		klog.Infof("queue %s is exist", queueName)
+		return
+	}
+	queue := v1alpha1.Queue{ObjectMeta: metav1.ObjectMeta{Name: queueName}}
+	err := c.multiSchedulingQueue.Add(&queue)
+	if err != nil {
+		klog.Errorf("queue %s add queueMap fail %v", queueName, err.Error())
+	}
+}
+
 
 func (c *Controller) AddQueueUnit(obj interface{}) {
 	unit := obj.(*v1alpha1.QueueUnit)
