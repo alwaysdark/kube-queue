@@ -111,7 +111,8 @@ func (p *PrioritySchedulingQueue) AddUnschedulableIfNotPresent(quInfo *framework
 		return nil
 	}
 
-	return p.backoffQ.Add(quInfo)
+	//return p.backoffQ.Add(quInfo)
+	return p.items.Add(quInfo)
 }
 
 func (p *PrioritySchedulingQueue) Delete(q *v1alpha1.QueueUnit) error {
