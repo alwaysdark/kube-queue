@@ -137,7 +137,8 @@ func (c *Controller) AddQueueUnit(obj interface{}) {
 	queueName := unit.Namespace
 	q, ok := c.multiSchedulingQueue.GetQueueByName(queueName)
 	if !ok {
-		klog.Errorf("queue is not exist %s", queueName)
+		klog.Infof("queue is not exist %s", queueName)
+		c.multiSchedulingQueue.EnOmissiveQu(unit)
 		return
 	}
 
@@ -158,7 +159,8 @@ func (c *Controller) DeleteQueueUnit(obj interface{}) {
 	queueName := unit.Namespace
 	q, ok := c.multiSchedulingQueue.GetQueueByName(queueName)
 	if !ok {
-		klog.Errorf("queue is not exist %s", queueName)
+		klog.Infof("queue is not exist %s", queueName)
+		c.multiSchedulingQueue.DeOmissiveQu(unit)
 		return
 	}
 
@@ -180,7 +182,8 @@ func (c *Controller) UpdateQueueUnit(oldObj, newObj interface{}) {
 	queueName := newQu.Namespace
 	q, ok := c.multiSchedulingQueue.GetQueueByName(queueName)
 	if !ok {
-		klog.Errorf("queue is not exist %s", queueName)
+		klog.Infof("queue is not exist %s", queueName)
+		c.multiSchedulingQueue.UpdateOmissiveQu(oldQu, newQu)
 		return
 	}
 

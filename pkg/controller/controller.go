@@ -98,6 +98,7 @@ func NewController(
 
 func (c *Controller) Start(ctx context.Context) {
 	c.multiSchedulingQueue.Run()
+	c.multiSchedulingQueue.HandleOmissiveQu()
 	c.scheduler.Start(ctx)
 	c.multiSchedulingQueue.Close()
 }

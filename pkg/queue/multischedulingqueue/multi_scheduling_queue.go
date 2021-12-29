@@ -17,14 +17,18 @@
 package multischedulingqueue
 
 import (
+	"context"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/kube-queue/api/pkg/apis/scheduling/v1alpha1"
 	"github.com/kube-queue/kube-queue/pkg/framework"
 	"github.com/kube-queue/kube-queue/pkg/queue"
 	"github.com/kube-queue/kube-queue/pkg/queue/schedulingqueue"
+	schedv1alpha1 "github.com/kube-queue/api/pkg/apis/scheduling/v1alpha1"
 )
 
 // Making sure that MultiSchedulingQueue implements MultiSchedulingQueue.
@@ -37,6 +41,7 @@ type MultiSchedulingQueue struct {
 	lessFunc framework.MultiQueueLessFunc
 	podInitialBackoffSeconds int
 	podMaxBackoffSeconds int
+	omissiveQu map[string]interface{}
 }
 
 func NewMultiSchedulingQueue(fw framework.Framework, podInitialBackoffSeconds int, podMaxBackoffSeconds int, informersFactory informers.SharedInformerFactory) (queue.MultiSchedulingQueue, error) {
@@ -47,6 +52,7 @@ func NewMultiSchedulingQueue(fw framework.Framework, podInitialBackoffSeconds in
 		lessFunc: fw.MultiQueueSortFunc(),
 		podInitialBackoffSeconds: podInitialBackoffSeconds,
 		podMaxBackoffSeconds: podMaxBackoffSeconds,
+		omissiveQu: make(map[string]interface{}),
 	}
     // TODO 该处需要研究一下informer
 	//nsList, err := informersFactory.Core().V1().Namespaces().Lister().List(labels.Everything())
@@ -138,3 +144,58 @@ func queueInfoKeyFunc(obj interface{}) (string, error) {
 	q := obj.(queue.SchedulingQueue)
 	return q.Name(), nil
 }
+
+func (mq *MultiSchedulingQueue) EnOmissiveQu(q *schedv1alpha1.QueueUnit) {
+	mq.Lock()
+	defer mq.Unlock()
+
+	mq.omissiveQu[q.Namespace + "/" + q.Name] = q
+}
+
+func (mq *MultiSchedulingQueue) DeOmissiveQu(q *schedv1alpha1.QueueUnit) {
+	mq.Lock()
+	defer mq.Unlock()
+
+	delete(mq.omissiveQu, q.Namespace + "/" + q.Name)
+}
+
+func (mq *MultiSchedulingQueue) UpdateOmissiveQu(old *schedv1alpha1.QueueUnit,new *schedv1alpha1.QueueUnit) {
+	mq.Lock()
+	defer mq.Unlock()
+
+	if _, ok := mq.omissiveQu[old.Namespace + "/" + old.Name]; !ok {
+		return
+	}
+	mq.omissiveQu[new.Namespace + "/" + new.Name] = new
+}
+
+func (mq *MultiSchedulingQueue) HandleOmissiveQu() {
+	go wait.Until(mq.flushOmissiveQu, 1.0*time.Second, context.TODO().Done())
+}
+
+func (mq *MultiSchedulingQueue) flushOmissiveQu() {
+	mq.Lock()
+	defer mq.Unlock()
+
+	if len(mq.omissiveQu) == 0 {
+		return
+	}
+	for k, v := range mq.omissiveQu {
+		qu := v.(*v1alpha1.QueueUnit)
+		q, ok := mq.GetQueueByName(qu.Namespace)
+		if !ok {
+			continue
+		}
+		err := q.Add(qu)
+		if err == nil {
+			delete(mq.omissiveQu, k)
+		}
+	}
+}
+
+
+
+
+
+
+

@@ -31,6 +31,10 @@ type MultiSchedulingQueue interface {
 	GetQueueByName(name string) (SchedulingQueue, bool)
 	Run()
 	Close()
+	EnOmissiveQu(*schedv1alpha1.QueueUnit)
+	DeOmissiveQu(*schedv1alpha1.QueueUnit)
+	UpdateOmissiveQu(*schedv1alpha1.QueueUnit, *schedv1alpha1.QueueUnit)
+	HandleOmissiveQu()
 }
 
 // SchedulingQueue is interface of Single Scheduling Queue.
