@@ -34,13 +34,17 @@ type Scheduler struct {
 	multiSchedulingQueue queue.MultiSchedulingQueue
 	fw                   framework.Framework
 	QueueClient          *versioned.Clientset
+	FilterFailDelay      int
+	QueueIsEmptyDelay    int
 }
 
-func NewScheduler(multiSchedulingQueue queue.MultiSchedulingQueue, fw framework.Framework, queueClient *versioned.Clientset) (*Scheduler, error) {
+func NewScheduler(multiSchedulingQueue queue.MultiSchedulingQueue, fw framework.Framework, queueClient *versioned.Clientset, filterFailDelay int, queueIsEmptyDelay int) (*Scheduler, error) {
 	sche := &Scheduler{
 		multiSchedulingQueue: multiSchedulingQueue,
 		fw:                   fw,
 		QueueClient:          queueClient,
+		FilterFailDelay:      filterFailDelay,
+		QueueIsEmptyDelay:    queueIsEmptyDelay,
 	}
 	return sche, nil
 }
@@ -86,8 +90,11 @@ func (s *Scheduler) schedule(ctx context.Context) {
 				}()
 			} else {
 				s.ErrorFunc(ctx, unitInfo, q)
+				time.Sleep(time.Duration(s.FilterFailDelay) * time.Millisecond)
 				klog.Info("---schedule end %v ---", unitInfo.Name)
 			}
+		} else {
+			time.Sleep(time.Duration(s.QueueIsEmptyDelay) * time.Millisecond)
 		}
 	}
 }

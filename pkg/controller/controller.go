@@ -57,7 +57,9 @@ func NewController(
 	queueInformer cache.SharedIndexInformer,
 	stopCh <-chan struct{},
 	podInitialBackoffSeconds int,
-	podMaxBackoffSeconds int) (*Controller, error) {
+	podMaxBackoffSeconds int,
+	filterFailDelay int,
+	queueIsEmptyDelay int) (*Controller, error) {
 
 	// Create event broadcaster
 	eventBroadcaster := record.NewBroadcaster()
@@ -88,7 +90,7 @@ func NewController(
 	controller.addAllEventHandlers(queueInformer, informersFactory)
 	go controller.queueUnitInformer.Run(stopCh)
 
-	controller.scheduler, err = scheduler.NewScheduler(multiSchedulingQueue, fw, queueUnitClient)
+	controller.scheduler, err = scheduler.NewScheduler(multiSchedulingQueue, fw, queueUnitClient, filterFailDelay, queueIsEmptyDelay)
 	if err != nil {
 		klog.Fatalf("init scheduler failed %s", err)
 	}

@@ -72,7 +72,7 @@ func Run(opt *options.ServerOption) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	controller, err := controller.NewController(kubeClient, opt.KubeConfig, kubeInformerFactory, queueUnitClient, queueUnitInformer, ctx.Done(), opt.PodInitialBackoffSeconds, opt.PodMaxBackoffSeconds)
+	controller, err := controller.NewController(kubeClient, opt.KubeConfig, kubeInformerFactory, queueUnitClient, queueUnitInformer, ctx.Done(), opt.PodInitialBackoffSeconds, opt.PodMaxBackoffSeconds, opt.FilterFailDelay, opt.QueueIsEmptyDelay)
 	if err != nil {
 		klog.Fatalln("Error building controller\n")
 	}

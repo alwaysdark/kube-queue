@@ -2,6 +2,7 @@ FROM golang:1.15.3-alpine3.12 as build
 RUN apk add make
 ADD . /go/src/github.com/kube-queue
 WORKDIR /go/src/github.com/kube-queue
+ENV GOPROXY=https://goproxy.cn
 RUN make
 
 FROM alpine:3.12

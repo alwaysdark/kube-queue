@@ -33,6 +33,11 @@ type ServerOption struct {
 	PodInitialBackoffSeconds int
 	// Pod in the backoffQ max duration
 	PodMaxBackoffSeconds int
+	// Schedule delay time due to filter fail
+	FilterFailDelay int
+	// Schedule delay time due to queue is empty
+	QueueIsEmptyDelay int
+
 }
 
 func NewServerOption() *ServerOption {
@@ -46,4 +51,6 @@ func (s *ServerOption) AddFlags(fs *flag.FlagSet) {
 	fs.IntVar(&s.Burst, "burst", 10, "Maximum burst for throttle.")
 	fs.IntVar(&s.PodInitialBackoffSeconds, "podInitialBackoffSeconds", 1, "Pod in the backoffQ init duration")
 	fs.IntVar(&s.PodMaxBackoffSeconds, "podMaxBackoffSeconds", 20, "Pod in the backoffQ max duration")
+	fs.IntVar(&s.FilterFailDelay, "filterFailDelay", 20, "Schedule delay time due to filter failure")
+	fs.IntVar(&s.QueueIsEmptyDelay, "queueIsEmptyDelay", 20, "Schedule delay time due to queue is empty")
 }
